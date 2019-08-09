@@ -191,6 +191,63 @@ class ESSConnection(ACSQueryConnection):
         result = self.get_object('CreateScalingConfiguration', params, ResultSet)
         return self.describe_configurations(scaling_group_id=scaling_group_id, scaling_configuration_ids=[result.scaling_configuration_id])[0]
 
+    def create_scaling_configuration(self, **kwargs):
+        """
+        create an scaling configuration in ess
+
+        :type str
+        :param scaling_group_id: ID of the scaling group of a scaling configuration.
+        :type str
+        :param image_id: ID of an ECS instance image, indicating an image selected
+        :type str
+        :param instance_type: Resource type of an ECS instance.
+        :type str
+        :param security_group_id: ID of the security group to which a newly created instance belongs.
+        :type str
+        :param name: Name shown for the scheduled task.
+            The name must contain 2-40 English or Chinese characters, and start with a number,
+            a letter in upper or lower case or a Chinese character.
+            The name can contain numbers, “_“, “-“ or “.”.
+            The account name in the same scaling group is unique in the same region.
+            If this parameter value is not specified, the default value is ScalingConfigurationId.
+        :type str
+        :param internet_charge_type: Network billing type, Values: PayByBandwidth or PayByTraffic. Default to PayByBandwidth.
+        :type str
+        :param max_bandwidth_out: Maximum outgoing bandwidth from the public network, measured in Mbps (Mega bit per second). Default to 0.
+        :type str
+        :param max_bandwidth_in: Maximum incoming bandwidth from the public network, measured in Mbps (Mega bit per second). Default to 200.
+        :type str
+        :param system_disk_category: Category of the system disk. Values: cloud_efficiency or cloud_ssd. Default to cloud_efficiency.
+        :type int
+        :param system_disk_size: Size of the system disk. Values: 40~500. Default to 40.
+        :type list
+        :param data_disks: A list of hash/dictionaries of data disks. A maximum of four values can be entered.
+            '[{size:"value", category:"value", snapshot_id:"value", delete_with_instance:"value"}]',
+            size: Size of data disk. Values: 20 ~ 32768.
+            category: Category of the data disk. Values: cloud_efficiency or cloud_ssd. Default to cloud_efficiency.
+            snapshot_id: Snapshot used for creating the data disk. If it is specified, the size parameter is neglected, and the size of the created disk is the size of the snapshot.
+            delete_with_instance: Whether the data disk will be released along with the instance. Default to true.
+        :type list
+        :param tags: A list of hash/dictionaries of instance
+            tags, '[{tag_key:"value", tag_value:"value"}]', tag_key
+            must be not null when tag_value isn't null
+        :type str
+        :param key_pair_name: Key pair name.
+        :type str
+        :param ram_role_name: The name of the instance RAM role.
+        :type str
+        :param user_data: The user-defined data of the instance.
+
+        :rtype: object
+        :return: Returns a <footmark.ess.Configuration> object.
+
+        """
+
+        result = self.get_object_new(self.build_request_params(self.format_request_kwargs(**kwargs)), ResultSet)
+
+        kwargs['scaling_configuration_ids'] = [result.scaling_configuration_id]
+        return self.describe_scaling_configurations(kwargs)[0]
+
     def describe_configurations(self, scaling_group_id=None, scaling_configuration_ids=None, scaling_configuration_names=None,
                                 pagenumber=None, pagesize=50):
         """
@@ -240,6 +297,101 @@ class ESSConnection(ACSQueryConnection):
             pNum += 1
 
         return cfgs
+
+    def describe_scaling_configurations(self, **kwargs):
+        """
+        Retrieve all the scaling configurations
+        :type str
+        :parameter scaling_group_id: ID of the scaling group of a scaling configuration.
+        :type list
+        :parameter scaling_configuration_ids: List ID of a scaling configurations.
+        :type list
+        :parameter scaling_configuration_names: List name of a scaling configurations.
+        :type int
+        :parameter pagenumber: Page number of the scaling configuration list. The initial value and default value are both 1.
+        :type int
+        :parameter pagesize: When querying by page, this parameter indicates the number of lines per page. Maximum value: 50; default value: 10.
+
+        :rtype: list
+        :return: A list of  :class:`footmark.ess.configuration`
+
+        """
+
+        cfgs = []
+        # params = {}
+        # if scaling_group_id:
+        #     self.build_list_params(params, scaling_group_id, 'ScalingGroupId')
+
+        # self.build_list_params(params, pagesize, 'PageSize')
+
+        pNum, page_number_bool = kwargs['page_number']
+        page_size = kwargs['page_size']
+        if not pNum:
+            pNum = 1
+        if not page_size:
+            page_size = 50
+        while True:
+            # self.build_list_params(params, pNum, 'PageNumber')
+            kwargs['page_number'] = pNum
+            kwargs['page_size'] = page_size
+            # cfg_list = self.get_list('DescribeScalingConfigurations', params,
+            #                          ['ScalingConfigurations', ScalingConfiguration])
+
+            cfg_list = self.get_list_new(self.build_request_params(self.format_ess_request_kwargs(self.format_request_kwargs(**kwargs))), ['ScalingConfigurations', ScalingConfiguration])
+
+            for cfg in cfg_list:
+                cfgs.append(cfg)
+            if page_number_bool or len(cfg_list) < page_size:
+                break
+            pNum += 1
+
+        return cfgs
+
+    def format_ess_request_kwargs(self, **kwargs):
+        """
+        Transfer request parameters for match the sdk params
+        :param kwargs:
+        :return:
+        """
+
+        for key, value in kwargs.items():
+            if key == 'scaling_configuration_ids':
+                if value and len(value) > 0:
+                    for i in range(len(value)):
+                        if i < 10 and value[i]:
+                            kwargs['scaling_configuration_id' + bytes(i + 1)] = value[i]
+
+            if key == 'scaling_configuration_names':
+                if value and len(value) > 0:
+                    for i in range(len(value)):
+                        if i < 10 and value[i]:
+                            kwargs['scaling_configuration_name' + bytes(i + 1)] = value[i]
+
+            if key == 'scaling_group_ids':
+                if value and len(value) > 0:
+                    for i in range(len(value)):
+                        if i < 10 and value[i]:
+                            kwargs['scaling_group_id' + bytes(i + 1)] = value[i]
+
+            if key == 'scaling_group_names':
+                if value and len(value) > 0:
+                    for i in range(len(value)):
+                        if i < 10 and value[i]:
+                            kwargs['scaling_group_name' + bytes(i + 1)] = value[i]
+
+            if key == 'removal_policies':
+                if value and len(value) > 0:
+                    for i in range(len(value)):
+                        if i < 2 and value[i]:
+                            kwargs['RemovalPolicy' + bytes(i + 1)] = value[i]
+
+            if key == 'instance_ids':
+                if value and len(value) > 0:
+                    for i in range(len(value)):
+                        if i < 20 and value[i]:
+                            kwargs['InstanceId' + bytes(i + 1)] = value[i]
+
+        return kwargs
 
     def terminate_configuration(self, scaling_configuration_id):
         """
@@ -330,7 +482,51 @@ class ESSConnection(ACSQueryConnection):
         result = self.get_object('CreateScalingGroup', params, ResultSet)
         return self.describe_groups(scaling_group_ids=[result.scaling_group_id])[0]
 
-    def describe_groups(self, scaling_group_ids=None, scaling_group_names=None, pagenumber=None, pagesize=50):
+    def create_scaling_group(self, **kwargs):
+        """
+        A scaling group is a collection of ECS instances with the same application scenarios.
+        It defines the maximum and minimum numbers of ECS instances in the group,
+        and their associated Server Load Balancer instances, RDS instances, and other attributes.
+
+        :type int
+        :param max_size: Maximum number of ECS instances in the scaling group. Value range: [0, 100].
+        :type int
+        :param min_size: Minimum number of ECS instances in the scaling group. Value range: [0, 100].
+        :type str
+        :param name: Name shown for the scaling group, which must contain 2-40 characters (English or Chinese).
+            The name must begin with a number, an upper/lower-case letter or a Chinese character and may contain numbers, “_“, “-“ or “.”.
+            The account name is unique in the same region.
+            If this parameter is not specified, the default value is its ID.
+        :type int
+        :param default_cooldown: Default cool-down time (in seconds) of the scaling group. Value range: [0, 86400]. Default to is 300.
+        :type list
+        :param removal_policies: Policy for removing ECS instances from the scaling group.
+            Optional values:
+                OldestInstance: removes the first ECS instance attached to the scaling group.
+                NewestInstance: removes the first ECS instance attached to the scaling group.
+                OldestScalingConfiguration: removes the ECS instance with the oldest scaling configuration.
+            Default values: OldestScalingConfiguration and OldestInstance.
+            At most 2 policies can be entered.
+        :type list
+        :param load_balancer_ids: ID list of a Server Load Balancer instance.
+        :type list
+        :param db_instance_ids: ID list of an RDS instance.
+        :type list
+        :param vswitch_ids: ID list of a VSwitch. It is used to create instance in multiple zones.
+            At most 5 VSwitches in a VPC can be specified.
+            The priority of VSwitches descends from 1 to 5, and 1 indicates the highest priority.
+            When you fail to create an instance in the zone to which a specified VSwitch belongs,
+            another VSwitch with less priority replaces the specified one automatically.
+
+        :rtype: object
+        :return: Returns a <footmark.ess.Group> object.
+
+        """
+
+        result = self.get_object_new(self.build_request_params(self.format_ess_request_kwargs(self.format_request_kwargs(**kwargs))), ResultSet)
+        return self.describe_groups(scaling_group_ids=[result.scaling_group_id])[0]
+
+    def describe_groups(self, **kwargs):
         """
         Query the information of a scaling group. Scaling groups have the following life cycle states:
 
@@ -358,28 +554,34 @@ class ESSConnection(ACSQueryConnection):
 
         cfgs = []
         params = {}
-        if scaling_group_ids:
-            for i in range(len(scaling_group_ids)):
-                if i < 20 and scaling_group_ids[i]:
-                    self.build_list_params(params, scaling_group_ids[i], 'ScalingGroupId' + bytes(i + 1))
-        if scaling_group_names:
-            for i in range(len(scaling_group_names)):
-                if i < 20 and scaling_group_names[i]:
-                    self.build_list_params(params, scaling_group_names[i], 'ScalingGroupName' + bytes(i + 1))
+        # if scaling_group_ids:
+        #     for i in range(len(scaling_group_ids)):
+        #         if i < 20 and scaling_group_ids[i]:
+        #             self.build_list_params(params, scaling_group_ids[i], 'ScalingGroupId' + bytes(i + 1))
+        # if scaling_group_names:
+        #     for i in range(len(scaling_group_names)):
+        #         if i < 20 and scaling_group_names[i]:
+        #             self.build_list_params(params, scaling_group_names[i], 'ScalingGroupName' + bytes(i + 1))
 
-        self.build_list_params(params, pagesize, 'PageSize')
+        # self.build_list_params(params, pagesize, 'PageSize')
 
-        pNum = pagenumber
-        if not pNum:
-            pNum = 1
+        p_num, page_number_init = kwargs['page_number']
+        page_size = kwargs['page_size']
+        if not p_num:
+            p_num = 1
+        if not page_size:
+            page_size = 50
         while True:
-            self.build_list_params(params, pNum, 'PageNumber')
-            cfg_list = self.get_list('DescribeScalingGroups', params, ['ScalingGroups', ScalingGroup])
+            # self.build_list_params(params, p_num, 'PageNumber')
+            kwargs['page_number'] = p_num
+            kwargs['page_size'] = page_size
+            # cfg_list = self.get_list('DescribeScalingGroups', params, ['ScalingGroups', ScalingGroup])
+            cfg_list = self.get_list_new(self.build_request_params(self.format_ess_request_kwargs(self.format_request_kwargs(**kwargs))), ['ScalingGroups', ScalingGroup])
             for cfg in cfg_list:
                 cfgs.append(cfg)
-            if pagenumber or len(cfg_list) < pagesize:
+            if page_number_init or len(cfg_list) < page_size:
                 break
-            pNum += 1
+            p_num += 1
 
         return cfgs
 
@@ -425,6 +627,36 @@ class ESSConnection(ACSQueryConnection):
 
         return self.get_status('EnableScalingGroup', params)
 
+    def enable_scaling_group(self, **kwargs):
+        """
+        Enables the specified scaling group.
+        After the scaling group is successfully enabled (the group is active), the ECS instances specified by the interface are attached to the group.
+
+        ForceDelete indicates whether to forcibly delete a scaling group and remove and release ECS instances if the scaling group has ECS instances or scaling activities are in progress.
+
+        Restrictions on attaching ECS instances:
+
+            1. The attached ECS instance and the scaling group must be in the same region.
+            2. The attached ECS instance and the instance with active scaling configurations must be of the same type.
+            3. The attached ECS instance must in the running state.
+            4. The attached ECS instance has not been attached to other scaling groups.
+            5. The attached ECS instance supports Subscription and Pay-As-You-Go payment methods.
+            6. If the VswitchID is specified for a scaling group, you cannot attach Classic ECS instances or ECS instances on other VPCs to the scaling group.
+            7. If the VswitchID is not specified for the scaling group, ECS instances of the VPC type cannot be attached to the scaling group
+
+        :type str
+        :param scaling_group_id: ID of a scaling group.
+        :type str
+        :param scaling_configuration_id: ID of a active scaling configuration.
+        :type list
+        :param instance_ids: ID of the ECS instance to be attached to the scaling group after it is enabled.
+            At most 20 IDs can be entered.
+
+        :rtype: bool
+        :return: The result of enabling scaling group.
+        """
+        return self.get_status_new(self.build_request_params(self.format_ess_request_kwargs(self.format_request_kwargs(**kwargs))))
+
     def disable_group(self, scaling_group_id):
         """
         Disable a specified scaling group.
@@ -444,6 +676,22 @@ class ESSConnection(ACSQueryConnection):
         self.build_list_params(params, scaling_group_id, 'ScalingGroupId')
 
         return self.get_status('DisableScalingGroup', params)
+
+    def disable_scaling_group(self, **kwargs):
+        """
+        Disable a specified scaling group.
+
+        The scaling activities in progress before the scaling group is disabled are continued until completion,
+        whereas scaling activities triggered after the scaling group is disabled are rejected.
+
+        :type str
+        :param scaling_group_id: ID of a scaling group.
+        :type str
+
+        :rtype: bool
+        :return: The result of disabling scaling group.
+        """
+        return self.get_status_new(self.build_request_params(self.format_ess_request_kwargs(**self.format_request_kwargs(**kwargs))))
 
     def modify_group(self, scaling_group_id, max_size=None, min_size=None, name=None, default_cooldown=None,
                      removal_policies=None, scaling_configuration_id=None):
@@ -511,6 +759,51 @@ class ESSConnection(ACSQueryConnection):
 
         return self.get_status('ModifyScalingGroup', params)
 
+    def modify_scaling_group(self, **kwargs):
+
+        """
+        Modifies the attributes of a scaling group.
+
+        The interface can be called only when the scaling group is active or inactive.
+
+        When the scaling configuration specified for the scaling group needs to be modified,
+        the instance type attribute of the modified scaling configuration must be consistent with that of the active scaling configuration.
+
+        After a new scaling configuration is added to the scaling group, the running ECS instances which are created based on the previous scaling configuration remain unchanged.
+        When the number (total capacity) of ECS instances in the scaling group does not meet the modified MaxSize or MinSize specification,
+        the Auto Scaling service automatically attaches or removes ECS instances to/from the group to make odds even.
+
+
+        :type str
+        :param scaling_group_id: ID of a scaling group.
+        :type int
+        :param max_size: Maximum number of ECS instances in the scaling group. Value range: [0, 100].
+        :type int
+        :param min_size: Minimum number of ECS instances in the scaling group. Value range: [0, 100].
+        :type str
+        :param name: Name shown for the scaling group, which must contain 2-40 characters (English or Chinese).
+            The name must begin with a number, an upper/lower-case letter or a Chinese character and may contain numbers, “_“, “-“ or “.”.
+            The account name is unique in the same region.
+            If this parameter is not specified, the default value is its ID.
+        :type int
+        :param default_cooldown: Default cool-down time (in seconds) of the scaling group. Value range: [0, 86400]. Default to is 300.
+        :type list
+        :param removal_policies: Policy for removing ECS instances from the scaling group.
+            Optional values:
+                OldestInstance: removes the first ECS instance attached to the scaling group.
+                NewestInstance: removes the first ECS instance attached to the scaling group.
+                OldestScalingConfiguration: removes the ECS instance with the oldest scaling configuration.
+            Default values: OldestScalingConfiguration and OldestInstance.
+            At most 2 policies can be entered.
+        :type str
+        :param scaling_configuration_id: ID of a active scaling configuration.
+
+        :rtype: object
+        :return: Returns a <footmark.ess.Group> object.
+
+        """
+        return self.get_status_new(self.build_request_params(self.format_ess_request_kwargs(**self.format_request_kwargs(**kwargs))))
+
     def terminate_group(self, scaling_group_id, force=False):
         """
         Delete a specified scaling group.
@@ -544,6 +837,33 @@ class ESSConnection(ACSQueryConnection):
             self.build_list_params(params, force, 'ForceDelete')
 
         return self.get_status('DeleteScalingGroup', params)
+
+    def delete_scaling_group(self, **kwargs):
+        """
+        Delete a specified scaling group.
+
+        ForceDelete indicates whether to forcibly delete a scaling group and remove and release ECS instances if the scaling group has ECS instances or scaling activities are in progress.
+
+        When ForceDelete is set to false, the scaling group can be deleted only when the following conditions are met:
+
+            Condition 1: No scaling activities are in progress in the scaling group.
+            Condition 2: The current number (total capacity) of ECS instances in the scaling group is 0.
+        When the two conditions are met, the scaling group is disabled and then deleted.
+
+        When ForceDelete is set to true, the scaling group is disabled to reject new scaling activity requests.
+        When the existing scaling activity is completed, all ECS instances are removed from the scaling group and the group is then deleted (manually attached ECS instances are removed from the scaling group, whereas ECS instances automatically created by the Auto Scaling service are deleted).
+        Deleting a scaling group also deletes scaling configurations, rules, activities, and requests.
+
+        :type str
+        :param scaling_group_id: ID of a scaling group.
+        :type bool
+        :param force: Indicates whether to forcibly delete a scaling group and remove and release ECS instances if the scaling group has ECS instances or scaling activities are in progress.
+            Default to False.
+
+        :rtype: bool
+        :return: The result of deleting scaling group.
+        """
+        return self.get_status_new(self.build_request_params(self.format_ess_request_kwargs(**self.format_request_kwargs(**kwargs))))
 
     def attach_instances(self, scaling_group_id, instance_ids):
         """
@@ -688,6 +1008,60 @@ class ESSConnection(ACSQueryConnection):
             if pagenumber or len(cfg_list) < pagesize:
                 break
             pNum += 1
+
+        return instances
+
+    def describe_scaling_instances(self, **kwargs):
+        """
+        Queries the list of ECS instances in a scaling group.
+        You can query by scaling group ID, scaling configuration ID, health status, lifecycle status, and creation type.
+
+        :type str
+        :param scaling_group_id: ID of a scaling group.
+        :type str
+        :param scaling_configuration_id: ID of a scaling configuration
+        :type list
+        :param instance_ids: ID of the ECS instance to be attached to the scaling group after it is enabled.
+            At most 20 IDs can be entered.
+        :type str
+        :param health_status: Health status of an ECS instance in the scaling group. Options: Healthy and Unhealthy.
+        :type str
+        :param lifecycle_state: Lifecycle status of an ECS instance in the scaling group. Options:
+            - InService: the ECS instance has been added to the scaling group and runs properly.
+            - Pending: the ECS instance is being attached to the scaling group with relevant configurations not completed.
+            - Removing: the ECS instance is being removed from the scaling group.
+        :type str
+        :param creation_type: ECS instance creation type. Options:
+            - AutoCreated: the ECS instance is automatically created by the Auto Scaling service in the scaling group.
+            - Attached: the ECS instance is created outside the Auto Scaling service and manually attached to the scaling group.
+        :type int
+        :param pagenumber: Page number of the scaling group list. The initial value and default value are both 1.
+        :type int
+        :param pagesize: When querying by page, this parameter indicates the number of lines per page. Maximum value: 50; default value: 10.
+
+        :rtype: list
+        :return: A list of :class:`footmark.ess.instance`
+
+        """
+
+        instances = []
+        p_num, p_num_init = kwargs['page_number']
+        page_size = ['page_size']
+        if not p_num:
+            p_num = 1
+        if not page_size:
+            page_size = 50
+        while True:
+            kwargs['page_number'] = p_num
+            kwargs['page_size'] = page_size
+
+            cfg_list = self.get_list_new(self.build_request_params(self.format_ess_request_kwargs
+                                                                   (**self.format_request_kwargs(**kwargs))), ['ScalingInstances', ScalingInstance])
+            for cfg in cfg_list:
+                instances.append(cfg)
+            if p_num_init or len(cfg_list) < page_size:
+                break
+            p_num += 1
 
         return instances
 
@@ -869,6 +1243,20 @@ class ESSConnection(ACSQueryConnection):
         self.build_list_params(params, scaling_rule_id, 'ScalingRuleId')
 
         return self.get_status('DeleteScalingRule', params)
+
+    def delete_scaling_rule(self, **kwargs):
+        """
+        Deletes a specified scaling rule.
+
+        :type str
+        :param scaling_rule_id: ID of a scaling rule.
+
+        :rtype: bool
+        :return: The result of deleting.
+
+        """
+
+        return self.get_status_new(self.build_request_params(self.format_request_kwargs(**kwargs)))
 
     def create_scheduled_task(self, scaling_rule_ari, launch_time, name=None, description=None, launch_expiration_time=None,
                               recurrence_type=None, recurrence_value=None, recurrence_end_time=None, task_enabled=None):
